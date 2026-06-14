@@ -1,73 +1,71 @@
-# MathForge MD-to-PDF Converter
+# MD2PDF - Markdown to PDF Converter Web Application
 
-**MathForge MD-to-PDF** là một công cụ dòng lệnh (CLI) gọn nhẹ bằng Python giúp chuyển đổi các tệp tin Markdown (`.md`) sang định dạng tài liệu PDF chất lượng cao. 
+**MD2PDF** là một ứng dụng web Single-Page App (SPA) hiện đại, trực quan và mạnh mẽ, giúp biên dịch tài liệu Markdown sang PDF chất lượng cao. Công cụ được tối ưu hóa đặc biệt cho các báo cáo kỹ thuật, tài liệu khoa học chứa công thức toán học phức tạp và mã nguồn lập trình.
 
-Công cụ được thiết kế để hỗ trợ tốt nhất cho:
-*   **Tiếng Việt có dấu:** Tự động cấu hình hệ thống font chữ unicode qua trình biên dịch XeLaTeX để tránh lỗi hiển thị ký tự tiếng Việt.
-*   **Công thức toán học chuyên sâu:** Tự động biên dịch các khối công thức LaTeX (bao gồm cả ký hiệu nội dòng và khối hiển thị phức tạp).
-*   **Mã nguồn có màu sắc (Syntax Highlighting):** Hỗ trợ nhiều phong cách tô sáng mã nguồn (code blocks) của các ngôn ngữ lập trình phổ biến.
+👉 **Trải nghiệm trực tuyến**: [GitHub Pages Demo](https://dieptuhuy.github.io/md2PDF/)
 
 ---
 
-## 🛠️ Yêu cầu hệ thống
+## ✨ Tính năng nổi bật
 
-Công cụ này hoạt động như một lớp giao tiếp tiện ích bao quanh **Pandoc** và **XeLaTeX**. Bạn cần cài đặt hai công cụ nền này:
+### 1. Xem trước thời gian thực (Live Preview)
+*   Tự động biên dịch cú pháp Markdown sang HTML chuẩn xác bằng thư viện `Marked.js`.
+*   Tự động tô sáng cú pháp mã nguồn (Syntax Highlighting) cho nhiều ngôn ngữ lập trình bằng `Highlight.js`.
+*   Trình diễn trực quan bố cục A4 chuẩn in ấn trực tiếp trên trình duyệt.
 
-1.  **Pandoc:** Trình chuyển đổi định dạng tài liệu đa năng.
-2.  **XeLaTeX:** Một động cơ TeX hiện đại, cho phép sử dụng trực tiếp các font chữ hệ thống (Arial, Times New Roman...) để kết xuất tiếng Việt.
+### 2. Hỗ trợ Công thức Toán học KaTeX Siêu Tốc
+*   Kết xuất tức thời mọi công thức Toán học LaTeX nội dòng (Inline Math `$ ... $`) và dạng khối hiển thị (Display Math `$$ ... $$`) thông qua thư viện `KaTeX`.
+*   Đảm bảo không bị vỡ ký tự unicode tiếng Việt hay công thức phức tạp trong quá trình kết xuất.
 
-### Hướng dẫn cài đặt nhanh trên macOS (Homebrew)
+### 3. Hệ thống dịch thuật thông minh (Smart Translation)
+*   Tích hợp dịch thuật đa ngôn ngữ (Tiếng Việt, Tiếng Anh, Tiếng Trung, Tiếng Nhật, Tiếng Pháp) qua API Google Dịch.
+*   **Thuật toán bảo vệ dữ liệu độc quyền**: 
+    *   Tự động phát hiện và đóng gói các khối mã nguồn, bảng biểu Markdown, công thức toán học KaTeX, hình ảnh (`![]()`) và liên kết thành các khóa bảo vệ dạng `__PROTECTED_XXX_BLOCK_N__` trước khi gửi đi dịch.
+    *   Sử dụng biểu thức chính quy Lookahead nâng cao `(?!\d)` để khôi phục chính xác 100% dữ liệu gốc sau khi dịch, bất kể việc API dịch thuật có thể tự ý thay đổi, xóa dấu gạch dưới hay thêm khoảng cách.
 
-Mở Terminal và chạy các lệnh sau:
+### 4. Tùy biến trang giấy & Bố cục A4 chuyên nghiệp
+*   Thay đổi phông chữ (Arial, Times New Roman, Georgia, Fira Code).
+*   Điều chỉnh kích thước phông chữ (10pt, 11pt, 12pt, 14pt).
+*   Tùy chọn độ rộng lề trang (Hẹp 0.5in, Thường 1.0in, Rộng 1.25in).
+*   Điều chỉnh khoảng cách giãn dòng (1.15, 1.25, 1.50).
+*   Hỗ trợ chế độ nền xem trước (Nền trắng in ấn hoặc nền trang ngà Sepia chống mỏi mắt).
 
-```bash
-# Cài đặt Pandoc
-brew install pandoc
+### 5. Xuất bản PDF Chất lượng cao
+*   **Xuất PDF Trực tiếp**: Sử dụng thư viện `html2pdf.js` kết hợp `html2canvas` và `jsPDF` giúp người dùng tải xuống tệp tin PDF trực tiếp chỉ với một cú nhấp chuột mà không phụ thuộc vào hội thoại in của hệ thống.
+*   **Hộp thoại in hệ thống (Print Dialog Fallback)**: Tự động phát hiện các tài liệu dài (> 8 trang) để chuyển hướng tối ưu sang hộp thoại in của hệ thống (`window.print()`). Giải pháp này giúp loại bỏ hoàn toàn hiện tượng tràn bộ nhớ/vỡ canvas trên các tài liệu lớn, đồng thời giữ nguyên khả năng bôi đen/sao chép chữ (selectable text) trên file PDF đầu ra.
+*   **Ngăn chặn ngắt trang lỗi**: Tự động áp dụng thuộc tính CSS `break-inside: avoid` để đảm bảo công thức Toán học lớn, hình ảnh và khối code không bị cắt đôi một cách mất thẩm mỹ khi chuyển trang.
 
-# Cài đặt bộ công cụ soạn thảo LaTeX đầy đủ (MacTeX)
-brew install --cask mactex-no-gui
-```
+### 6. Hỗ trợ Ảnh minh họa & PDF đối chiếu
+*   **Tải ảnh cục bộ**: Cho phép tải lên các ảnh minh họa trực tiếp từ máy tính để phân giải các đường dẫn tương đối trong tệp Markdown.
+*   **Xem PDF đối chiếu**: Giao diện hai tab trực quan giúp người dùng tải lên và xem song song tài liệu PDF gốc (PDF đối chiếu) trực tiếp bên cạnh trang Markdown đang dịch và chỉnh sửa.
 
 ---
 
-## 🚀 Hướng dẫn sử dụng
+## 📂 Cấu trúc mã nguồn
 
-### Lệnh chạy cơ bản
-Để chuyển đổi một file Markdown sang PDF với cấu hình mặc định (font Arial, cỡ chữ 12pt, lề 1 inch):
+Dự án được viết hoàn toàn bằng HTML, CSS và Javascript thuần túy (Vanilla JS), không yêu cầu build/compile phức tạp:
 
-```bash
-python3 md2pdf.py input.md
-```
-*Kết quả đầu ra sẽ là tệp `input.pdf` nằm cùng thư mục và tự động mở lên bằng ứng dụng xem PDF mặc định của hệ thống.*
+*   [index.html](file:///Users/dieptuhuy/Library/CloudStorage/GoogleDrive-dieptuhuy80@gmail.com/My%20Drive/Paper%20ICLR/code/md_to_pdf/index.html): Cấu trúc giao diện ứng dụng web Single-Page Dashboard với phong cách Glassmorphism cao cấp.
+*   [style.css](file:///Users/dieptuhuy/Library/CloudStorage/GoogleDrive-dieptuhuy80@gmail.com/My%20Drive/Paper%20ICLR/code/md_to_pdf/style.css): Hệ thống phong cách (styling), thiết kế đáp ứng (responsive grid) và kiểu in ấn chuyên nghiệp (`@media print`).
+*   [app.js](file:///Users/dieptuhuy/Library/CloudStorage/GoogleDrive-dieptuhuy80@gmail.com/My%20Drive/Paper%20ICLR/code/md_to_pdf/app.js): Xử lý toàn bộ logic ứng dụng, bao gồm bảo vệ/khôi phục placeholder, dịch thuật song song, cấu hình tài liệu và xuất bản PDF trực tiếp.
 
 ---
 
-## ⚙️ Các tùy chọn tham số (CLI Flags)
+## 🚀 Hướng dẫn chạy cục bộ (Local Development)
 
-Bạn có thể tùy chỉnh đầu ra bằng cách truyền thêm các cờ tham số:
+Bạn không cần cài đặt NodeJS hay bất kỳ thư viện bổ sung nào để chạy dự án. Chỉ cần khởi tạo một máy chủ web tĩnh đơn giản:
 
-| Tham số | Ý nghĩa | Mặc định | Ví dụ |
-| :--- | :--- | :---: | :--- |
-| `input` | File Markdown đầu vào (Bắt buộc). | *N/A* | `test.md` |
-| `-o`, `--output` | Đường dẫn file PDF đầu ra. | *Trùng tên file md* | `-o baocao.pdf` |
-| `-f`, `--font` | Font chữ chính của tài liệu. | `Arial` | `-f "Times New Roman"` |
-| `-m`, `--margin` | Độ rộng lề trang (top/bottom/left/right). | `1in` | `-m 2cm` hoặc `-m 20mm` |
-| `-s`, `--size` | Cỡ chữ chính của tài liệu. | `12pt` | `-s 11pt` |
-| `--stretch` | Khoảng cách giãn dòng. | `1.25` | `--stretch 1.5` |
-| `--toc` | Tạo Mục lục tự động ở đầu tài liệu. | *Không bật* | `--toc` |
-| `--numbered` | Đánh số thứ tự tự động cho các tiêu đề lớn/nhỏ. | *Không bật* | `--numbered` |
-| `--engine` | Trình kết xuất PDF của Pandoc. | `xelatex` | `--engine pdflatex` |
-| `--highlight` | Style tô sáng cú pháp code block. | `tango` | `--highlight pygments` |
-| `--no-open` | Không tự động mở file PDF sau khi chạy xong. | *Tự động mở* | `--no-open` |
-
-### Ví dụ về câu lệnh nâng cao
-Để tạo một báo cáo chuyên nghiệp có **mục lục**, các mục được **đánh số thứ tự**, lề **2 cm**, font chữ **Times New Roman** và cỡ chữ **11pt**:
-
+### Cách 1: Sử dụng Python (Cài đặt sẵn trên hầu hết hệ điều hành)
+Chạy lệnh sau tại thư mục chứa dự án:
 ```bash
-python3 md2pdf.py test_document.md -o BaoCaoQuocTe.pdf -f "Times New Roman" -m 2cm -s 11pt --toc --numbered
+python3 -m http.server 8000
 ```
+Sau đó truy cập địa chỉ `http://localhost:8000` trên trình duyệt.
+
+### Cách 2: Sử dụng tiện ích Live Server trên VS Code
+Mở thư mục `md_to_pdf` trong VS Code, nhấp chuột phải vào file `index.html` và chọn **Open with Live Server**.
 
 ---
 
 ## 📝 Giấy phép
-Công cụ này được phân phối tự do để hỗ trợ công việc nghiên cứu khoa học và soạn thảo văn bản chất lượng cao.
+Dự án được phát triển tự do nhằm phục vụ công việc nghiên cứu khoa học, dịch thuật tài liệu học thuật và xuất bản báo cáo chất lượng cao.
