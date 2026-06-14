@@ -167,43 +167,88 @@ function updatePreview() {
   clearTimeout(compileTimeout);
   compileTimeout = setTimeout(() => {
     try {
-      // Parse markdown to HTML
-      let htmlContent = marked.parse(markdownText);
+      let text = markdownText;
       
-      // Resolve relative images with local uploaded Blob URLs
+      // 1. Protect code blocks so they aren't parsed as math
+      const codeBlocks = [];
+      text = text.replace(/```[\s\S]*?```/g, (match) => {
+        const placeholder = `CODEBLOCKFENCEDPLACEHOLDER${codeBlocks.length}`;
+        codeBlocks.push({ placeholder, original: match });
+        return placeholder;
+      });
+      text = text.replace(/`[^`\n]+?`/g, (match) => {
+        const placeholder = `CODEBLOCKINLINEPLACEHOLDER${codeBlocks.length}`;
+        codeBlocks.push({ placeholder, original: match });
+        return placeholder;
+      });
+      
+      // 2. Protect math blocks from being corrupted by Markdown syntax (e.g. underscores parsed as italics)
+      const mathBlocks = [];
+      // Display Math $$...$$
+      text = text.replace(/\$\$([\s\S]*?)\$\$/g, (match, math) => {
+        const placeholder = `MATHBLOCKDISPLAYPLACEHOLDER${mathBlocks.length}`;
+        mathBlocks.push({ placeholder, math, display: true });
+        return placeholder;
+      });
+      // Inline Math $...$
+      text = text.replace(/\$([^\$]+?)\$/g, (match, math) => {
+        const placeholder = `MATHBLOCKINLINEPLACEHOLDER${mathBlocks.length}`;
+        mathBlocks.push({ placeholder, math, display: false });
+        return placeholder;
+      });
+      
+      // 3. Restore code blocks back to markdown format
+      codeBlocks.forEach(block => {
+        text = text.replace(block.placeholder, block.original);
+      });
+      
+      // 4. Parse Markdown to HTML
+      let htmlContent = marked.parse(text);
+      
+      // 5. Resolve relative images with local uploaded Blob URLs
       const parser = new DOMParser();
       const doc = parser.parseFromString(htmlContent, 'text/html');
       const imgs = doc.querySelectorAll('img');
-      let replaced = false;
+      let imgReplaced = false;
       
       imgs.forEach(img => {
         const src = img.getAttribute('src');
         if (src && !src.startsWith('blob:') && !src.startsWith('data:') && !src.startsWith('http://') && !src.startsWith('https://')) {
-          // Extract file name (e.g. "images/pic.png" -> "pic.png")
           const filename = src.split('/').pop();
           if (uploadedImages[filename]) {
             img.setAttribute('src', uploadedImages[filename]);
-            replaced = true;
+            imgReplaced = true;
           }
         }
       });
       
-      if (replaced) {
+      if (imgReplaced) {
         htmlContent = doc.body.innerHTML;
       }
       
-      elements.documentPreview.innerHTML = htmlContent;
-      
-      // Auto-render math equations using KaTeX
-      renderMathInElement(elements.documentPreview, {
-        delimiters: [
-          {left: '$$', right: '$$', display: true},
-          {left: '$', right: '$', display: false},
-          {left: '\\(', right: '\\)', display: false},
-          {left: '\\[', right: '\\]', display: true}
-        ],
-        throwOnError: false
+      // 6. Restore math blocks using katex.renderToString directly
+      mathBlocks.forEach(block => {
+        try {
+          // If the math contains \tag, it MUST be rendered in display mode to avoid KaTeX parse errors
+          let displayMode = block.display;
+          if (block.math.includes('\\tag')) {
+            displayMode = true;
+          }
+          
+          const mathHtml = katex.renderToString(block.math, {
+            displayMode: displayMode,
+            throwOnError: false
+          });
+          
+          const replacement = displayMode ? `<div class="katex-display-wrapper">${mathHtml}</div>` : mathHtml;
+          htmlContent = htmlContent.replace(block.placeholder, replacement);
+        } catch (katexErr) {
+          console.error(katexErr);
+          htmlContent = htmlContent.replace(block.placeholder, `<span class="katex-error" style="color: #ef4444;">${block.math}</span>`);
+        }
       });
+      
+      elements.documentPreview.innerHTML = htmlContent;
       
     } catch (err) {
       console.error('Markdown parsing error:', err);
