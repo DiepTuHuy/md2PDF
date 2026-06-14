@@ -50,11 +50,22 @@
             <i class="fa-solid fa-file-import"></i> Tải MD
           </button>
           
+          <input type="file" id="input-upload-images" accept="image/*" multiple style="display: none;">
+          <button class="upload-btn" onclick="document.getElementById('input-upload-images').click()" title="Tải lên ảnh minh họa (.png, .jpg, .gif...)">
+            <i class="fa-solid fa-images"></i> Tải Ảnh
+          </button>
+
           <input type="file" id="input-upload-pdf" accept=".pdf" style="display: none;">
           <button class="upload-btn" onclick="document.getElementById('input-upload-pdf').click()" title="Tải lên tệp PDF (.pdf) để đối chiếu">
             <i class="fa-solid fa-file-pdf"></i> Tải PDF
           </button>
         </div>
+      </div>
+      
+      <!-- Image Status Bar -->
+      <div id="image-status-bar" class="image-status-bar" style="display: none;">
+        <span class="image-status-count"><i class="fa-solid fa-image"></i> Đã tải <span id="image-count">0</span> ảnh minh họa</span>
+        <button id="btn-clear-images" class="clear-images-btn" title="Xóa tất cả ảnh đã tải"><i class="fa-solid fa-trash-can"></i></button>
       </div>
       
       <!-- Snippets Toolbar -->

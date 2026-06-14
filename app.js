@@ -8,6 +8,8 @@ const state = {
   currentTab: "markdown" // "markdown" or "pdf"
 };
 
+const uploadedImages = {}; // Map of filename -> blobURL
+
 const elements = {
   markdownInput: document.getElementById('markdown-input'),
   documentPreview: document.getElementById('document-preview'),
@@ -22,7 +24,13 @@ const elements = {
   
   // Uploader Inputs
   inputUploadMd: document.getElementById('input-upload-md'),
+  inputUploadImages: document.getElementById('input-upload-images'),
   inputUploadPdf: document.getElementById('input-upload-pdf'),
+  
+  // Image Status Elements
+  imageStatusBar: document.getElementById('image-status-bar'),
+  imageCount: document.getElementById('image-count'),
+  btnClearImages: document.getElementById('btn-clear-images'),
   
   // Settings & Options
   fontSelect: document.getElementById('font-family-select'),
@@ -160,7 +168,30 @@ function updatePreview() {
   compileTimeout = setTimeout(() => {
     try {
       // Parse markdown to HTML
-      const htmlContent = marked.parse(markdownText);
+      let htmlContent = marked.parse(markdownText);
+      
+      // Resolve relative images with local uploaded Blob URLs
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlContent, 'text/html');
+      const imgs = doc.querySelectorAll('img');
+      let replaced = false;
+      
+      imgs.forEach(img => {
+        const src = img.getAttribute('src');
+        if (src && !src.startsWith('blob:') && !src.startsWith('data:') && !src.startsWith('http://') && !src.startsWith('https://')) {
+          // Extract file name (e.g. "images/pic.png" -> "pic.png")
+          const filename = src.split('/').pop();
+          if (uploadedImages[filename]) {
+            img.setAttribute('src', uploadedImages[filename]);
+            replaced = true;
+          }
+        }
+      });
+      
+      if (replaced) {
+        htmlContent = doc.body.innerHTML;
+      }
+      
       elements.documentPreview.innerHTML = htmlContent;
       
       // Auto-render math equations using KaTeX
@@ -246,7 +277,7 @@ elements.inputUploadPdf.addEventListener('change', (e) => {
   showToast('Đã tải lên tệp tin PDF đối chiếu!', 'success');
 });
 
-// Document Translation with preservation of code and math blocks
+// Document Translation with preservation of code, math, images and link blocks
 async function translateDocument() {
   const targetLang = elements.translateLangSelect.value;
   let text = elements.markdownInput.value;
@@ -284,7 +315,23 @@ async function translateDocument() {
       return placeholder;
     });
     
-    // 3. Split text by paragraphs to respect API length limits (~2000 chars)
+    // 3. Protect images (![alt](src))
+    const imageBlocks = [];
+    text = text.replace(/!\[.*?\]\(.*?\)/g, (match) => {
+      const placeholder = `__PROTECTED_IMAGE_BLOCK_${imageBlocks.length}__`;
+      imageBlocks.push({ placeholder, original: match });
+      return placeholder;
+    });
+    
+    // 4. Protect standard links ([text](url))
+    const linkBlocks = [];
+    text = text.replace(/\[.*?\]\(.*?\)/g, (match) => {
+      const placeholder = `__PROTECTED_LINK_BLOCK_${linkBlocks.length}__`;
+      linkBlocks.push({ placeholder, original: match });
+      return placeholder;
+    });
+    
+    // 5. Split text by paragraphs to respect API length limits (~2000 chars)
     const paragraphs = text.split(/\n\n+/);
     const translatedParagraphs = [];
     
@@ -295,7 +342,7 @@ async function translateDocument() {
       }
       
       // Skip translation if the paragraph is just a placeholder
-      if (/^__(PROTECTED_CODE_BLOCK|PROTECTED_MATH_BLOCK)_\d+__$/.test(p.trim())) {
+      if (/^__(PROTECTED_CODE_BLOCK|PROTECTED_MATH_BLOCK|PROTECTED_IMAGE_BLOCK|PROTECTED_LINK_BLOCK)_\d+__$/.test(p.trim())) {
         translatedParagraphs.push(p);
         continue;
       }
@@ -321,7 +368,17 @@ async function translateDocument() {
     // Reconstruct the translated document
     let translatedDoc = translatedParagraphs.join('\n\n');
     
-    // 4. Restore protected blocks (regex match with spaces allowed around underscores)
+    // Restore protected blocks (regex match with spaces allowed around underscores)
+    linkBlocks.forEach(block => {
+      const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '\\s*\\_\\s*'), 'gi');
+      translatedDoc = translatedDoc.replace(placeholderPattern, block.original);
+    });
+    
+    imageBlocks.forEach(block => {
+      const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '\\s*\\_\\s*'), 'gi');
+      translatedDoc = translatedDoc.replace(placeholderPattern, block.original);
+    });
+    
     mathBlocks.forEach(block => {
       const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '\\s*\\_\\s*'), 'gi');
       translatedDoc = translatedDoc.replace(placeholderPattern, block.original);
@@ -419,6 +476,98 @@ elements.btnDownloadMd.addEventListener('click', () => {
   
   URL.revokeObjectURL(url);
   showToast('Đã tải xuống file Markdown!', 'success');
+});
+
+// Image Upload listener
+elements.inputUploadImages.addEventListener('change', (e) => {
+  const files = e.target.files;
+  if (!files.length) return;
+  
+  let added = 0;
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const url = URL.createObjectURL(file);
+    uploadedImages[file.name] = url;
+    added++;
+  }
+  
+  const count = Object.keys(uploadedImages).length;
+  elements.imageCount.textContent = count;
+  elements.imageStatusBar.style.display = count > 0 ? 'flex' : 'none';
+  
+  updatePreview();
+  showToast(`Đã tải lên ${added} ảnh minh họa thành công!`, 'success');
+});
+
+// Clear Images listener
+elements.btnClearImages.addEventListener('click', () => {
+  for (let key in uploadedImages) {
+    URL.revokeObjectURL(uploadedImages[key]);
+    delete uploadedImages[key];
+  }
+  elements.imageCount.textContent = '0';
+  elements.imageStatusBar.style.display = 'none';
+  
+  updatePreview();
+  showToast('Đã xóa toàn bộ ảnh minh họa.', 'info');
+});
+
+// Drag and drop files on editor textarea
+const textarea = elements.markdownInput;
+
+textarea.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  textarea.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+});
+
+textarea.addEventListener('dragleave', (e) => {
+  e.preventDefault();
+  textarea.style.borderColor = '';
+});
+
+textarea.addEventListener('drop', (e) => {
+  e.preventDefault();
+  textarea.style.borderColor = '';
+  
+  const files = e.dataTransfer.files;
+  if (!files.length) return;
+  
+  let mdFile = null;
+  let imageFiles = [];
+  
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (file.name.toLowerCase().endsWith('.md')) {
+      mdFile = file;
+    } else if (file.type.startsWith('image/')) {
+      imageFiles.push(file);
+    }
+  }
+  
+  if (mdFile) {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      elements.markdownInput.value = event.target.result;
+      updatePreview();
+      switchTab('markdown');
+      showToast(`Đã tải tệp Markdown: ${mdFile.name}`, 'success');
+    };
+    reader.readAsText(mdFile);
+  }
+  
+  if (imageFiles.length > 0) {
+    let added = 0;
+    for (let file of imageFiles) {
+      const url = URL.createObjectURL(file);
+      uploadedImages[file.name] = url;
+      added++;
+    }
+    const count = Object.keys(uploadedImages).length;
+    elements.imageCount.textContent = count;
+    elements.imageStatusBar.style.display = count > 0 ? 'flex' : 'none';
+    updatePreview();
+    showToast(`Đã tải thêm ${added} ảnh minh họa từ kéo thả!`, 'success');
+  }
 });
 
 // Start app and render default markdown

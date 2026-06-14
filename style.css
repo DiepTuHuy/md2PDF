@@ -741,6 +741,53 @@ footer {
   transform: scale(0.96);
 }
 
+.image-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--btn-radius);
+  padding: 0.4rem 0.8rem;
+  margin-bottom: 0.8rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  animation: slideIn 0.2s forwards;
+}
+
+.image-status-count {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 500;
+}
+
+.image-status-count i {
+  color: var(--text-secondary);
+}
+
+.clear-images-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.2rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.clear-images-btn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.clear-images-btn:active {
+  transform: scale(0.9);
+}
+
 /* Translation settings container */
 .translation-container {
   margin-top: 1.25rem;
