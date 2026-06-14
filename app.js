@@ -555,10 +555,93 @@ document.querySelectorAll('.tool-btn').forEach(btn => {
   });
 });
 
-// Action triggers: Print to PDF
-elements.btnExportPdf.addEventListener('click', () => {
-  window.print();
-});
+// Action triggers: Direct PDF Export using html2pdf.js
+async function exportToPdfDirect() {
+  const btn = elements.btnExportPdf;
+  const originalText = btn.innerHTML;
+  
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Khởi tạo...';
+  
+  try {
+    // 1. Dynamically load html2pdf.js library if not loaded
+    if (typeof html2pdf === 'undefined') {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+        script.onload = resolve;
+        script.onerror = () => reject(new Error('Không thể tải thư viện xuất PDF!'));
+        document.head.appendChild(script);
+      });
+    }
+    
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang xuất...';
+    
+    const element = elements.documentPreview;
+    
+    // 2. Temporarily apply styling changes to force print mode (white page, black text, zero padding)
+    const originalBg = document.documentElement.style.getPropertyValue('--document-bg');
+    const originalColor = document.documentElement.style.getPropertyValue('--document-color');
+    const originalBoxShadow = element.style.boxShadow;
+    const originalBorderRadius = element.style.borderRadius;
+    const originalPadding = element.style.padding;
+    const originalTextJustify = element.style.textAlign;
+    
+    const originalMarginVal = state.margin; // e.g. "1in", "0.5in"
+    let marginInches = 0.5;
+    if (originalMarginVal.includes('in')) {
+      marginInches = parseFloat(originalMarginVal);
+    } else if (originalMarginVal.includes('cm')) {
+      marginInches = parseFloat(originalMarginVal) / 2.54;
+    }
+    
+    // Set styles for A4 layout rendering
+    document.documentElement.style.setProperty('--document-bg', '#ffffff');
+    document.documentElement.style.setProperty('--document-color', '#000000');
+    element.style.boxShadow = 'none';
+    element.style.borderRadius = '0';
+    element.style.padding = '0'; // let html2pdf margins handle page spacing
+    element.style.textAlign = 'justify';
+    
+    const opt = {
+      margin:       marginInches,
+      filename:     `document-${Date.now()}.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { 
+        scale: 2.5, // Crisp print resolution
+        useCORS: true,
+        logging: false
+      },
+      jsPDF:        { 
+        unit: 'in', 
+        format: 'a4', 
+        orientation: 'portrait' 
+      },
+      pagebreak: { mode: ['css', 'legacy'] }
+    };
+    
+    // Run html2pdf and await download completion
+    await html2pdf().set(opt).from(element).save();
+    
+    // Restore original styles
+    document.documentElement.style.setProperty('--document-bg', originalBg);
+    document.documentElement.style.setProperty('--document-color', originalColor);
+    element.style.boxShadow = originalBoxShadow;
+    element.style.borderRadius = originalBorderRadius;
+    element.style.padding = originalPadding;
+    element.style.textAlign = originalTextJustify;
+    
+    showToast('Tải xuống PDF thành công!', 'success');
+  } catch (err) {
+    console.error(err);
+    showToast(err.message || 'Lỗi xuất tệp PDF.', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+  }
+}
+
+elements.btnExportPdf.addEventListener('click', exportToPdfDirect);
 
 // Action triggers: Copy raw HTML code
 elements.btnCopyHtml.addEventListener('click', async () => {

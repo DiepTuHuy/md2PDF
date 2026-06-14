@@ -383,6 +383,15 @@ select:focus {
   margin-bottom: 0.6em;
   font-weight: 700;
   line-height: 1.2;
+  page-break-after: avoid;
+  break-after: avoid;
+}
+
+#document-preview tr,
+#document-preview pre,
+#document-preview blockquote {
+  page-break-inside: avoid;
+  break-inside: avoid;
 }
 
 #document-preview h1 { font-size: 2em; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.3em; }
