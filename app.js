@@ -322,7 +322,7 @@ elements.inputUploadPdf.addEventListener('change', (e) => {
   showToast('Đã tải lên tệp tin PDF đối chiếu!', 'success');
 });
 
-// Document Translation with preservation of code, math, images and link blocks
+// Document Translation with preservation of code, math, tables, images and link blocks
 async function translateDocument() {
   const targetLang = elements.translateLangSelect.value;
   let text = elements.markdownInput.value;
@@ -337,46 +337,90 @@ async function translateDocument() {
   elements.btnTranslateDoc.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang dịch...';
   
   try {
-    // 1. Protect fenced code blocks (```)
+    // 1. Protect fenced code blocks (```) - wrap in newlines to isolate from adjacent text paragraphs
     const codeBlocks = [];
     text = text.replace(/```[\s\S]*?```/g, (match) => {
-      const placeholder = `__PROTECTED_CODE_BLOCK_${codeBlocks.length}__`;
-      codeBlocks.push({ placeholder, original: match });
+      const placeholderKey = `__PROTECTED_CODE_BLOCK_${codeBlocks.length}__`;
+      const placeholder = `\n\n${placeholderKey}\n\n`;
+      codeBlocks.push({ placeholder: placeholderKey, original: match });
       return placeholder;
     });
     
-    // 2. Protect math blocks (display math $$...$$ and inline math $...$)
+    // 2. Protect Markdown tables from being corrupted by translation
+    const tableBlocks = [];
+    const lines = text.split(/\r?\n/);
+    const newLines = [];
+    const separatorRegex = /^(?=.*\|)[ \t]*\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$/;
+    const blockIndicatorRegex = /^(?:#|>|`{3,}| {0,3}[*\-+](?:[ \t]|$)| {0,3}\d+\.(?:[ \t]|$))/;
+    
+    let i = 0;
+    while (i < lines.length) {
+      if (i + 1 < lines.length && 
+          lines[i].trim() !== "" && 
+          !blockIndicatorRegex.test(lines[i].trim()) && 
+          separatorRegex.test(lines[i+1])) {
+        
+        const tableLines = [lines[i], lines[i+1]];
+        let j = i + 2;
+        while (j < lines.length) {
+          const nextLine = lines[j];
+          if (nextLine.trim() === "" || blockIndicatorRegex.test(nextLine.trim())) {
+            break;
+          }
+          if (nextLine.includes('|')) {
+            tableLines.push(nextLine);
+            j++;
+          } else {
+            break;
+          }
+        }
+        
+        const tableContent = tableLines.join('\n');
+        const placeholderKey = `__PROTECTED_TABLE_BLOCK_${tableBlocks.length}__`;
+        tableBlocks.push({ placeholder: placeholderKey, original: tableContent });
+        
+        newLines.push(`\n\n${placeholderKey}\n\n`);
+        i = j;
+      } else {
+        newLines.push(lines[i]);
+        i++;
+      }
+    }
+    text = newLines.join('\n');
+    
+    // 3. Protect math blocks (display math $$...$$ and inline math $...$)
     const mathBlocks = [];
     // Display Math
     text = text.replace(/\$\$[\s\S]*?\$\$/g, (match) => {
-      const placeholder = `__PROTECTED_MATH_BLOCK_${mathBlocks.length}__`;
-      mathBlocks.push({ placeholder, original: match });
+      const placeholderKey = `__PROTECTED_MATH_BLOCK_${mathBlocks.length}__`;
+      const placeholder = `\n\n${placeholderKey}\n\n`;
+      mathBlocks.push({ placeholder: placeholderKey, original: match });
       return placeholder;
     });
     // Inline Math
     text = text.replace(/\$[^\$]+?\$/g, (match) => {
-      const placeholder = `__PROTECTED_MATH_BLOCK_${mathBlocks.length}__`;
-      mathBlocks.push({ placeholder, original: match });
-      return placeholder;
+      const placeholderKey = `__PROTECTED_MATH_BLOCK_${mathBlocks.length}__`;
+      mathBlocks.push({ placeholder: placeholderKey, original: match });
+      return placeholderKey;
     });
     
-    // 3. Protect images (![alt](src))
+    // 4. Protect images (![alt](src))
     const imageBlocks = [];
     text = text.replace(/!\[.*?\]\(.*?\)/g, (match) => {
-      const placeholder = `__PROTECTED_IMAGE_BLOCK_${imageBlocks.length}__`;
-      imageBlocks.push({ placeholder, original: match });
+      const placeholderKey = `__PROTECTED_IMAGE_BLOCK_${imageBlocks.length}__`;
+      imageBlocks.push({ placeholder: placeholderKey, original: match });
       return placeholder;
     });
     
-    // 4. Protect standard links ([text](url))
+    // 5. Protect standard links ([text](url))
     const linkBlocks = [];
     text = text.replace(/\[.*?\]\(.*?\)/g, (match) => {
-      const placeholder = `__PROTECTED_LINK_BLOCK_${linkBlocks.length}__`;
-      linkBlocks.push({ placeholder, original: match });
+      const placeholderKey = `__PROTECTED_LINK_BLOCK_${linkBlocks.length}__`;
+      linkBlocks.push({ placeholder: placeholderKey, original: match });
       return placeholder;
     });
     
-    // 5. Split text by paragraphs to respect API length limits (~2000 chars)
+    // 6. Split text by paragraphs to respect API length limits (~2000 chars)
     const paragraphs = text.split(/\n\n+/);
     const translatedParagraphs = [];
     
@@ -387,8 +431,8 @@ async function translateDocument() {
       }
       
       // Skip translation if the paragraph is just a placeholder
-      if (/^__(PROTECTED_CODE_BLOCK|PROTECTED_MATH_BLOCK|PROTECTED_IMAGE_BLOCK|PROTECTED_LINK_BLOCK)_\d+__$/.test(p.trim())) {
-        translatedParagraphs.push(p);
+      if (/^__(PROTECTED_CODE_BLOCK|PROTECTED_MATH_BLOCK|PROTECTED_TABLE_BLOCK|PROTECTED_IMAGE_BLOCK|PROTECTED_LINK_BLOCK)_\d+__$/.test(p.trim())) {
+        translatedParagraphs.push(p.trim());
         continue;
       }
       
@@ -425,6 +469,11 @@ async function translateDocument() {
     });
     
     mathBlocks.forEach(block => {
+      const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '\\s*\\_\\s*'), 'gi');
+      translatedDoc = translatedDoc.replace(placeholderPattern, block.original);
+    });
+    
+    tableBlocks.forEach(block => {
       const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '\\s*\\_\\s*'), 'gi');
       translatedDoc = translatedDoc.replace(placeholderPattern, block.original);
     });
