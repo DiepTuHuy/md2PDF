@@ -459,27 +459,27 @@ async function translateDocument() {
     
     // Restore protected blocks (regex match with spaces allowed around underscores)
     linkBlocks.forEach(block => {
-      const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '\\s*\\_\\s*'), 'gi');
+      const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '[ \\t]*\\_[ \\t]*'), 'gi');
       translatedDoc = translatedDoc.replace(placeholderPattern, () => block.original);
     });
     
     imageBlocks.forEach(block => {
-      const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '\\s*\\_\\s*'), 'gi');
+      const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '[ \\t]*\\_[ \\t]*'), 'gi');
       translatedDoc = translatedDoc.replace(placeholderPattern, () => block.original);
     });
     
     mathBlocks.forEach(block => {
-      const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '\\s*\\_\\s*'), 'gi');
+      const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '[ \\t]*\\_[ \\t]*'), 'gi');
       translatedDoc = translatedDoc.replace(placeholderPattern, () => block.original);
     });
     
     tableBlocks.forEach(block => {
-      const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '\\s*\\_\\s*'), 'gi');
+      const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '[ \\t]*\\_[ \\t]*'), 'gi');
       translatedDoc = translatedDoc.replace(placeholderPattern, () => block.original);
     });
     
     codeBlocks.forEach(block => {
-      const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '\\s*\\_\\s*'), 'gi');
+      const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '[ \\t]*\\_[ \\t]*'), 'gi');
       translatedDoc = translatedDoc.replace(placeholderPattern, () => block.original);
     });
     
