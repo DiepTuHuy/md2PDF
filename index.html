@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MD2PDF - Markdown to PDF Converter</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&family=Georgia&family=Times+New+Roman&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Custom Styling -->
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- Marked.js for Markdown parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  
+  <!-- KaTeX for math rendering -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+  
+  <!-- Highlight.js for code syntax highlighting -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+</head>
+<body>
+  <div class="glow-bg"></div>
+  
+  <header class="no-print">
+    <div class="logo">
+      <i class="fa-solid fa-file-pdf logo-icon"></i>
+      <h1>MD<span>2PDF</span></h1>
+    </div>
+    <p class="subtitle">Biên dịch Markdown sang văn bản PDF chất lượng cao có công thức toán học và mã nguồn</p>
+  </header>
+
+  <main class="app-container">
+    <!-- Left Column: Editor & Options -->
+    <section class="panel editor-panel no-print">
+      <div class="panel-header">
+        <h2><i class="fa-solid fa-pen-to-square"></i> Soạn thảo Markdown</h2>
+        <span class="badge">MD</span>
+      </div>
+      
+      <!-- Snippets Toolbar -->
+      <div class="toolbar">
+        <div class="toolbar-group">
+          <span class="group-label">Định dạng:</span>
+          <button class="tool-btn" data-snippet="**chữ đậm**" title="Chữ đậm"><i class="fa-solid fa-bold"></i></button>
+          <button class="tool-btn" data-snippet="*chữ nghiêng*" title="Chữ nghiêng"><i class="fa-solid fa-italic"></i></button>
+          <button class="tool-btn" data-snippet="# " title="Tiêu đề 1"><i class="fa-solid fa-heading"></i>1</button>
+          <button class="tool-btn" data-snippet="## " title="Tiêu đề 2"><i class="fa-solid fa-heading"></i>2</button>
+        </div>
+        <div class="toolbar-group">
+          <span class="group-label">Chèn:</span>
+          <button class="tool-btn" data-snippet="[Liên kết](https://)" title="Liên kết"><i class="fa-solid fa-link"></i></button>
+          <button class="tool-btn" data-snippet="![Mô tả ảnh](https://)" title="Hình ảnh"><i class="fa-solid fa-image"></i></button>
+          <button class="tool-btn" data-snippet="\n| Cột 1 | Cột 2 |\n| :--- | :---: |\n| Dòng 1 | Dòng 2 |\n" title="Bảng"><i class="fa-solid fa-table"></i></button>
+          <button class="tool-btn" data-snippet="\n```python\n# Mã nguồn ở đây\n```\n" title="Khối Code"><i class="fa-solid fa-code"></i></button>
+        </div>
+        <div class="toolbar-group">
+          <span class="group-label">Toán học:</span>
+          <button class="tool-btn" data-snippet="$x^2$" title="Toán nội dòng"><i class="fa-solid fa-subscript"></i></button>
+          <button class="tool-btn" data-snippet="\n$$\n\\int_{-\\infty}^{\\infty} e^{-x^2} \\, dx = \\sqrt{\\pi}\n$$\n" title="Toán khối"><i class="fa-solid fa-calculator"></i></button>
+        </div>
+      </div>
+      
+      <div class="textarea-wrapper">
+        <textarea id="markdown-input" placeholder="Viết nội dung Markdown của bạn ở đây..."></textarea>
+      </div>
+
+      <!-- Settings Options -->
+      <div class="options-container">
+        <div class="option-item">
+          <label for="font-family-select"><i class="fa-solid fa-font"></i> Kiểu chữ (Font)</label>
+          <select id="font-family-select">
+            <option value="Arial, sans-serif" selected>Arial (Không chân)</option>
+            <option value="'Times New Roman', serif">Times New Roman (Có chân)</option>
+            <option value="Georgia, serif">Georgia (Mềm mại)</option>
+            <option value="'Fira Code', monospace">Fira Code (Mã nguồn)</option>
+          </select>
+        </div>
+
+        <div class="option-item">
+          <label for="font-size-select"><i class="fa-solid fa-text-height"></i> Cỡ chữ</label>
+          <select id="font-size-select">
+            <option value="10pt">10pt</option>
+            <option value="11pt">11pt</option>
+            <option value="12pt" selected>12pt</option>
+            <option value="14pt">14pt</option>
+          </select>
+        </div>
+
+        <div class="option-item">
+          <label for="margin-select"><i class="fa-solid fa-arrows-left-right-to-line"></i> Độ rộng lề</label>
+          <select id="margin-select">
+            <option value="0.5in">Hẹp (0.5 inch / 1.27 cm)</option>
+            <option value="1in" selected>Thường (1.0 inch / 2.54 cm)</option>
+            <option value="1.25in">Rộng (1.25 inch / 3.17 cm)</option>
+          </select>
+        </div>
+
+        <div class="option-item">
+          <label for="line-height-select"><i class="fa-solid fa-arrows-up-down"></i> Giãn dòng</label>
+          <select id="line-height-select">
+            <option value="1.15">1.15</option>
+            <option value="1.25" selected>1.25</option>
+            <option value="1.5">1.50</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Column: Document Preview -->
+    <section class="panel preview-panel">
+      <div class="panel-header no-print">
+        <h2><i class="fa-solid fa-file-lines"></i> Xem trước tài liệu</h2>
+        <div class="print-theme-selector">
+          <span class="toggle-label">Nền:</span>
+          <button class="bg-toggle-btn active" data-theme="light" title="Nền trang trắng (In ấn)"><i class="fa-solid fa-file" style="color: #ffffff; border: 1px solid #94a3b8; border-radius: 2px;"></i></button>
+          <button class="bg-toggle-btn" data-theme="sepia" title="Nền trang ngà (Dễ đọc)"><i class="fa-solid fa-file" style="color: #fcf6e4; border: 1px solid #e2d2b5; border-radius: 2px;"></i></button>
+        </div>
+      </div>
+
+      <!-- A4 Page Simulation container -->
+      <div class="preview-area" id="preview-container">
+        <div id="document-preview" class="document-body"></div>
+      </div>
+
+      <!-- Action Actions -->
+      <div class="actions-grid no-print">
+        <button id="btn-export-pdf" class="action-btn primary">
+          <i class="fa-solid fa-print"></i>
+          <span>Xuất tệp PDF (In trang)</span>
+        </button>
+        
+        <button id="btn-copy-html" class="action-btn secondary">
+          <i class="fa-solid fa-code"></i>
+          <span>Sao chép mã HTML</span>
+        </button>
+
+        <button id="btn-download-md" class="action-btn secondary">
+          <i class="fa-solid fa-download"></i>
+          <span>Tải xuống tệp .md</span>
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="no-print">
+    <p>&copy; 2026 MD2PDF. Thiết kế hoàn hảo cho văn bản học thuật và báo cáo khoa học.</p>
+  </footer>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container no-print" id="toast-box"></div>
+
+  <!-- Application Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
