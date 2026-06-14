@@ -4,17 +4,38 @@ const state = {
   fontSize: "12pt",
   margin: "1in",
   lineHeight: "1.25",
-  theme: "light"
+  theme: "light",
+  currentTab: "markdown" // "markdown" or "pdf"
 };
 
 const elements = {
   markdownInput: document.getElementById('markdown-input'),
   documentPreview: document.getElementById('document-preview'),
+  previewContainer: document.getElementById('preview-container'),
+  pdfPreviewContainer: document.getElementById('pdf-preview-container'),
+  pdfViewerIframe: document.getElementById('pdf-viewer-iframe'),
+  pdfEmptyMsg: document.getElementById('pdf-empty-msg'),
+  
+  // Tab Switcher Buttons
+  tabBtnMarkdown: document.getElementById('tab-btn-markdown'),
+  tabBtnPdf: document.getElementById('tab-btn-pdf'),
+  
+  // Uploader Inputs
+  inputUploadMd: document.getElementById('input-upload-md'),
+  inputUploadPdf: document.getElementById('input-upload-pdf'),
+  
+  // Settings & Options
   fontSelect: document.getElementById('font-family-select'),
   sizeSelect: document.getElementById('font-size-select'),
   marginSelect: document.getElementById('margin-select'),
   lineHeightSelect: document.getElementById('line-height-select'),
   bgToggleBtns: document.querySelectorAll('.bg-toggle-btn'),
+  
+  // Translation Options
+  translateLangSelect: document.getElementById('translate-lang-select'),
+  btnTranslateDoc: document.getElementById('btn-translate-doc'),
+  
+  // Actions
   btnExportPdf: document.getElementById('btn-export-pdf'),
   btnCopyHtml: document.getElementById('btn-copy-html'),
   btnDownloadMd: document.getElementById('btn-download-md'),
@@ -175,6 +196,158 @@ function applySettings() {
     document.documentElement.style.setProperty('--document-color', '#433422');
   }
 }
+
+// Tab Switching logic
+function switchTab(tabName) {
+  state.currentTab = tabName;
+  if (tabName === 'markdown') {
+    elements.tabBtnMarkdown.classList.add('active');
+    elements.tabBtnPdf.classList.remove('active');
+    elements.documentPreview.style.display = 'block';
+    elements.pdfPreviewContainer.style.display = 'none';
+  } else if (tabName === 'pdf') {
+    elements.tabBtnPdf.classList.add('active');
+    elements.tabBtnMarkdown.classList.remove('active');
+    elements.documentPreview.style.display = 'none';
+    elements.pdfPreviewContainer.style.display = 'block';
+  }
+}
+
+elements.tabBtnMarkdown.addEventListener('click', () => switchTab('markdown'));
+elements.tabBtnPdf.addEventListener('click', () => switchTab('pdf'));
+
+// MD File Upload Listener
+elements.inputUploadMd.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    elements.markdownInput.value = event.target.result;
+    updatePreview();
+    switchTab('markdown');
+    showToast('Đã tải lên tệp tin Markdown thành công!', 'success');
+  };
+  reader.readAsText(file);
+});
+
+// PDF File Upload Listener
+elements.inputUploadPdf.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  // Generate object URL for embedding
+  const blobUrl = URL.createObjectURL(file);
+  elements.pdfViewerIframe.src = blobUrl;
+  elements.pdfViewerIframe.style.display = 'block';
+  elements.pdfEmptyMsg.style.display = 'none';
+  
+  switchTab('pdf');
+  showToast('Đã tải lên tệp tin PDF đối chiếu!', 'success');
+});
+
+// Document Translation with preservation of code and math blocks
+async function translateDocument() {
+  const targetLang = elements.translateLangSelect.value;
+  let text = elements.markdownInput.value;
+  
+  if (!text.trim()) {
+    showToast('Văn bản trống, không thể dịch!', 'error');
+    return;
+  }
+  
+  showToast('Đang tiến hành dịch tài liệu... Vui lòng đợi.', 'info');
+  elements.btnTranslateDoc.disabled = true;
+  elements.btnTranslateDoc.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang dịch...';
+  
+  try {
+    // 1. Protect fenced code blocks (```)
+    const codeBlocks = [];
+    text = text.replace(/```[\s\S]*?```/g, (match) => {
+      const placeholder = `__PROTECTED_CODE_BLOCK_${codeBlocks.length}__`;
+      codeBlocks.push({ placeholder, original: match });
+      return placeholder;
+    });
+    
+    // 2. Protect math blocks (display math $$...$$ and inline math $...$)
+    const mathBlocks = [];
+    // Display Math
+    text = text.replace(/\$\$[\s\S]*?\$\$/g, (match) => {
+      const placeholder = `__PROTECTED_MATH_BLOCK_${mathBlocks.length}__`;
+      mathBlocks.push({ placeholder, original: match });
+      return placeholder;
+    });
+    // Inline Math
+    text = text.replace(/\$[^\$]+?\$/g, (match) => {
+      const placeholder = `__PROTECTED_MATH_BLOCK_${mathBlocks.length}__`;
+      mathBlocks.push({ placeholder, original: match });
+      return placeholder;
+    });
+    
+    // 3. Split text by paragraphs to respect API length limits (~2000 chars)
+    const paragraphs = text.split(/\n\n+/);
+    const translatedParagraphs = [];
+    
+    for (let p of paragraphs) {
+      if (!p.trim()) {
+        translatedParagraphs.push(p);
+        continue;
+      }
+      
+      // Skip translation if the paragraph is just a placeholder
+      if (/^__(PROTECTED_CODE_BLOCK|PROTECTED_MATH_BLOCK)_\d+__$/.test(p.trim())) {
+        translatedParagraphs.push(p);
+        continue;
+      }
+      
+      // Call free Google Translate API
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(p)}`;
+      const response = await fetch(url);
+      
+      if (!response.ok) throw new Error("Translation request failed");
+      
+      const json = await response.json();
+      let translatedText = "";
+      if (json && json[0]) {
+        json[0].forEach(segment => {
+          if (segment[0]) {
+            translatedText += segment[0];
+          }
+        });
+      }
+      translatedParagraphs.push(translatedText || p);
+    }
+    
+    // Reconstruct the translated document
+    let translatedDoc = translatedParagraphs.join('\n\n');
+    
+    // 4. Restore protected blocks (regex match with spaces allowed around underscores)
+    mathBlocks.forEach(block => {
+      const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '\\s*\\_\\s*'), 'gi');
+      translatedDoc = translatedDoc.replace(placeholderPattern, block.original);
+    });
+    
+    codeBlocks.forEach(block => {
+      const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '\\s*\\_\\s*'), 'gi');
+      translatedDoc = translatedDoc.replace(placeholderPattern, block.original);
+    });
+    
+    // Set the value back to the editor and update preview
+    elements.markdownInput.value = translatedDoc;
+    updatePreview();
+    switchTab('markdown');
+    showToast('Dịch tài liệu thành công!', 'success');
+    
+  } catch (err) {
+    console.error('Translation error:', err);
+    showToast('Lỗi dịch thuật. Vui lòng kiểm tra lại kết nối mạng!', 'error');
+  } finally {
+    elements.btnTranslateDoc.disabled = false;
+    elements.btnTranslateDoc.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Dịch tài liệu';
+  }
+}
+
+elements.btnTranslateDoc.addEventListener('click', translateDocument);
 
 // Setup Event Listeners for Settings
 elements.fontSelect.addEventListener('change', (e) => {
