@@ -197,9 +197,9 @@ function updatePreview() {
         return placeholder;
       });
       
-      // 3. Restore code blocks back to markdown format (using regex and boundary to prevent substring matching and protect dollar signs)
+      // 3. Restore code blocks back to markdown format (using regex and lookahead to prevent substring matching and protect dollar signs)
       codeBlocks.forEach(block => {
-        text = text.replace(new RegExp(block.placeholder + '\\b', 'g'), () => block.original);
+        text = text.replace(new RegExp(block.placeholder + '(?!\\d)', 'g'), () => block.original);
       });
       
       // 4. Parse Markdown to HTML
@@ -241,10 +241,10 @@ function updatePreview() {
           });
           
           const replacement = displayMode ? `<div class="katex-display-wrapper">${mathHtml}</div>` : mathHtml;
-          htmlContent = htmlContent.replace(new RegExp(block.placeholder + '\\b', 'g'), () => replacement);
+          htmlContent = htmlContent.replace(new RegExp(block.placeholder + '(?!\\d)', 'g'), () => replacement);
         } catch (katexErr) {
           console.error(katexErr);
-          htmlContent = htmlContent.replace(new RegExp(block.placeholder + '\\b', 'g'), () => `<span class="katex-error" style="color: #ef4444;">${block.math}</span>`);
+          htmlContent = htmlContent.replace(new RegExp(block.placeholder + '(?!\\d)', 'g'), () => `<span class="katex-error" style="color: #ef4444;">${block.math}</span>`);
         }
       });
       
@@ -473,7 +473,7 @@ async function translateDocument() {
     
     // Helper to generate highly robust regex for placeholders to prevent prefix/substring collisions and space/underscore mangling
     const getRobustPattern = (type, index) => {
-      return new RegExp(`_*[ \\t]*PROTECTED[ \\t]*\\_[ \\t]*${type}[ \\t]*\\_[ \\t]*BLOCK[ \\t]*\\_[ \\t]*${index}\\b[ \\t]*_*`, 'gi');
+      return new RegExp(`_*[ \\t]*PROTECTED[ \\t]*\\_[ \\t]*${type}[ \\t]*\\_[ \\t]*BLOCK[ \\t]*\\_[ \\t]*${index}(?!\\d)[ \\t]*_*`, 'gi');
     };
 
     // Restore protected blocks (regex match with spaces allowed around underscores and strict boundary check)
@@ -563,20 +563,41 @@ async function exportToPdfDirect() {
   btn.disabled = true;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Khởi tạo...';
   
+  const element = elements.documentPreview;
+  
+  // 1. Temporarily save original styles
+  const originalBg = document.documentElement.style.getPropertyValue('--document-bg');
+  const originalColor = document.documentElement.style.getPropertyValue('--document-color');
+  const originalBoxShadow = element.style.boxShadow;
+  const originalBorderRadius = element.style.borderRadius;
+  const originalPadding = element.style.padding;
+  const originalTextJustify = element.style.textAlign;
+  const originalDisplay = element.style.display;
+  const originalTransition = element.style.transition;
+  
   try {
-    const element = elements.documentPreview;
+    // 2. Temporarily display block and disable transitions to measure height accurately
+    element.style.display = 'block';
+    element.style.transition = 'none';
+    element.offsetHeight; // Force browser layout reflow
     
     // Estimate page count based on height (A4 page height is approx. 1120px at screen resolution)
     const estimatedPages = Math.ceil(element.scrollHeight / 1120);
     
     // Fallback to native print for large documents to avoid browser canvas size memory limit crashes/blank page renders
     if (estimatedPages > 8) {
+      // Restore original display styles first
+      element.style.display = originalDisplay;
+      element.style.transition = originalTransition;
+      
       showToast('Tài liệu lớn được tối ưu hóa xuất bằng hội thoại in của hệ thống để đảm bảo chất lượng đầy đủ.', 'info');
+      switchTab('markdown'); // Ensure we are on the markdown preview tab
+      await new Promise(resolve => setTimeout(resolve, 150)); // Wait for tab layout to stabilize
       window.print();
       return;
     }
     
-    // 1. Dynamically load html2pdf.js library if not loaded
+    // 3. Dynamically load html2pdf.js library if not loaded
     if (typeof html2pdf === 'undefined') {
       await new Promise((resolve, reject) => {
         const script = document.createElement('script');
@@ -589,16 +610,7 @@ async function exportToPdfDirect() {
     
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang xuất...';
     
-    // 2. Temporarily apply styling changes to force print mode (white page, black text, zero padding, no transitions)
-    const originalBg = document.documentElement.style.getPropertyValue('--document-bg');
-    const originalColor = document.documentElement.style.getPropertyValue('--document-color');
-    const originalBoxShadow = element.style.boxShadow;
-    const originalBorderRadius = element.style.borderRadius;
-    const originalPadding = element.style.padding;
-    const originalTextJustify = element.style.textAlign;
-    const originalDisplay = element.style.display;
-    const originalTransition = element.style.transition;
-    
+    // 4. Apply styling changes to force print mode (white page, black text, zero padding)
     const originalMarginVal = state.margin; // e.g. "1in", "0.5in"
     let marginInches = 0.5;
     if (originalMarginVal.includes('in')) {
@@ -614,8 +626,10 @@ async function exportToPdfDirect() {
     element.style.borderRadius = '0';
     element.style.padding = '0'; // let html2pdf margins handle page spacing
     element.style.textAlign = 'justify';
-    element.style.display = 'block';
-    element.style.transition = 'none';
+    
+    // Force reflow and introduce a small delay to ensure browser layout & style paint finishes before canvas capture
+    element.offsetHeight;
+    await new Promise(resolve => setTimeout(resolve, 250));
     
     const opt = {
       margin:       marginInches,
@@ -637,6 +651,11 @@ async function exportToPdfDirect() {
     // Run html2pdf and await download completion
     await html2pdf().set(opt).from(element).save();
     
+    showToast('Tải xuống PDF thành công!', 'success');
+  } catch (err) {
+    console.error(err);
+    showToast(err.message || 'Lỗi xuất tệp PDF.', 'error');
+  } finally {
     // Restore original styles
     document.documentElement.style.setProperty('--document-bg', originalBg);
     document.documentElement.style.setProperty('--document-color', originalColor);
@@ -647,11 +666,6 @@ async function exportToPdfDirect() {
     element.style.display = originalDisplay;
     element.style.transition = originalTransition;
     
-    showToast('Tải xuống PDF thành công!', 'success');
-  } catch (err) {
-    console.error(err);
-    showToast(err.message || 'Lỗi xuất tệp PDF.', 'error');
-  } finally {
     btn.disabled = false;
     btn.innerHTML = originalText;
   }
