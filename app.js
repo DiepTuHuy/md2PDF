@@ -422,18 +422,32 @@ async function translateDocument() {
     
     // 6. Split text by paragraphs to respect API length limits (~2000 chars)
     const paragraphs = text.split(/\n\n+/);
-    const translatedParagraphs = [];
+    // Concurrency-limited parallel mapping helper (concurrency limit of 5 to avoid 429 rate limits)
+    async function mapLimit(array, limit, fn) {
+      const results = [];
+      const promises = [];
+      let i = 0;
+      async function worker() {
+        while (i < array.length) {
+          const index = i++;
+          results[index] = await fn(array[index]);
+        }
+      }
+      for (let j = 0; j < Math.min(limit, array.length); j++) {
+        promises.push(worker());
+      }
+      await Promise.all(promises);
+      return results;
+    }
     
-    for (let p of paragraphs) {
+    const translatedParagraphs = await mapLimit(paragraphs, 5, async (p) => {
       if (!p.trim()) {
-        translatedParagraphs.push(p);
-        continue;
+        return p;
       }
       
       // Skip translation if the paragraph is just a placeholder
       if (/^__(PROTECTED_CODE_BLOCK|PROTECTED_MATH_BLOCK|PROTECTED_TABLE_BLOCK|PROTECTED_IMAGE_BLOCK|PROTECTED_LINK_BLOCK)_\d+__$/.test(p.trim())) {
-        translatedParagraphs.push(p.trim());
-        continue;
+        return p.trim();
       }
       
       // Call free Google Translate API
@@ -451,8 +465,8 @@ async function translateDocument() {
           }
         });
       }
-      translatedParagraphs.push(translatedText || p);
-    }
+      return translatedText || p;
+    });
     
     // Reconstruct the translated document
     let translatedDoc = translatedParagraphs.join('\n\n');
