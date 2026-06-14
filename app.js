@@ -564,6 +564,18 @@ async function exportToPdfDirect() {
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Khởi tạo...';
   
   try {
+    const element = elements.documentPreview;
+    
+    // Estimate page count based on height (A4 page height is approx. 1120px at screen resolution)
+    const estimatedPages = Math.ceil(element.scrollHeight / 1120);
+    
+    // Fallback to native print for large documents to avoid browser canvas size memory limit crashes/blank page renders
+    if (estimatedPages > 8) {
+      showToast('Tài liệu lớn được tối ưu hóa xuất bằng hội thoại in của hệ thống để đảm bảo chất lượng đầy đủ.', 'info');
+      window.print();
+      return;
+    }
+    
     // 1. Dynamically load html2pdf.js library if not loaded
     if (typeof html2pdf === 'undefined') {
       await new Promise((resolve, reject) => {
@@ -577,9 +589,7 @@ async function exportToPdfDirect() {
     
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang xuất...';
     
-    const element = elements.documentPreview;
-    
-    // 2. Temporarily apply styling changes to force print mode (white page, black text, zero padding)
+    // 2. Temporarily apply styling changes to force print mode (white page, black text, zero padding, no transitions)
     const originalBg = document.documentElement.style.getPropertyValue('--document-bg');
     const originalColor = document.documentElement.style.getPropertyValue('--document-color');
     const originalBoxShadow = element.style.boxShadow;
@@ -587,6 +597,7 @@ async function exportToPdfDirect() {
     const originalPadding = element.style.padding;
     const originalTextJustify = element.style.textAlign;
     const originalDisplay = element.style.display;
+    const originalTransition = element.style.transition;
     
     const originalMarginVal = state.margin; // e.g. "1in", "0.5in"
     let marginInches = 0.5;
@@ -604,6 +615,7 @@ async function exportToPdfDirect() {
     element.style.padding = '0'; // let html2pdf margins handle page spacing
     element.style.textAlign = 'justify';
     element.style.display = 'block';
+    element.style.transition = 'none';
     
     const opt = {
       margin:       marginInches,
@@ -633,6 +645,7 @@ async function exportToPdfDirect() {
     element.style.padding = originalPadding;
     element.style.textAlign = originalTextJustify;
     element.style.display = originalDisplay;
+    element.style.transition = originalTransition;
     
     showToast('Tải xuống PDF thành công!', 'success');
   } catch (err) {
