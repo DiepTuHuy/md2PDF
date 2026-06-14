@@ -1,4 +1,12 @@
-// MarkItDown JS implementation for client-side document conversion - High Performance Version
+/**
+ * MarkItDown JS - Client-side Document Conversion Engine
+ * 
+ * Based on the architecture and design of Microsoft MarkItDown (https://github.com/microsoft/markitdown)
+ * Copyright (c) Microsoft Corporation. All rights reserved.
+ * Licensed under the MIT License.
+ * 
+ * Ported and optimized for client-side JavaScript by Antigravity AI.
+ */
 
 function loadScript(src) {
   return new Promise((resolve, reject) => {

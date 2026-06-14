@@ -67,5 +67,7 @@ Mở thư mục `md_to_pdf` trong VS Code, nhấp chuột phải vào file `inde
 
 ---
 
-## 📝 Giấy phép
-Dự án được phát triển tự do nhằm phục vụ công việc nghiên cứu khoa học, dịch thuật tài liệu học thuật và xuất bản báo cáo chất lượng cao.
+## 📝 Giấy phép & Ghi nhận Bản quyền (License & Attribution)
+
+*   **MD2PDF** được phát triển tự do dưới giấy phép MIT nhằm phục vụ công việc nghiên cứu khoa học, dịch thuật tài liệu học thuật và xuất bản báo cáo chất lượng cao.
+*   **Động cơ Chuyển đổi Tài liệu (Import & Conversion Engine)** trong dự án này được phát triển dựa trên ý tưởng kiến trúc và thiết kế của dự án **[Microsoft MarkItDown](https://github.com/microsoft/markitdown)** (Bản quyền © Microsoft Corporation, Giấy phép MIT). Chúng tôi xin chân thành cảm ơn các nhà phát triển Microsoft vì giải pháp chuyển đổi tài liệu sang Markdown tuyệt vời này.
