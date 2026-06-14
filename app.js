@@ -409,7 +409,7 @@ async function translateDocument() {
     text = text.replace(/!\[.*?\]\(.*?\)/g, (match) => {
       const placeholderKey = `__PROTECTED_IMAGE_BLOCK_${imageBlocks.length}__`;
       imageBlocks.push({ placeholder: placeholderKey, original: match });
-      return placeholder;
+      return placeholderKey;
     });
     
     // 5. Protect standard links ([text](url))
@@ -417,7 +417,7 @@ async function translateDocument() {
     text = text.replace(/\[.*?\]\(.*?\)/g, (match) => {
       const placeholderKey = `__PROTECTED_LINK_BLOCK_${linkBlocks.length}__`;
       linkBlocks.push({ placeholder: placeholderKey, original: match });
-      return placeholder;
+      return placeholderKey;
     });
     
     // 6. Split text by paragraphs to respect API length limits (~2000 chars)
@@ -460,27 +460,27 @@ async function translateDocument() {
     // Restore protected blocks (regex match with spaces allowed around underscores)
     linkBlocks.forEach(block => {
       const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '\\s*\\_\\s*'), 'gi');
-      translatedDoc = translatedDoc.replace(placeholderPattern, block.original);
+      translatedDoc = translatedDoc.replace(placeholderPattern, () => block.original);
     });
     
     imageBlocks.forEach(block => {
       const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '\\s*\\_\\s*'), 'gi');
-      translatedDoc = translatedDoc.replace(placeholderPattern, block.original);
+      translatedDoc = translatedDoc.replace(placeholderPattern, () => block.original);
     });
     
     mathBlocks.forEach(block => {
       const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '\\s*\\_\\s*'), 'gi');
-      translatedDoc = translatedDoc.replace(placeholderPattern, block.original);
+      translatedDoc = translatedDoc.replace(placeholderPattern, () => block.original);
     });
     
     tableBlocks.forEach(block => {
       const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '\\s*\\_\\s*'), 'gi');
-      translatedDoc = translatedDoc.replace(placeholderPattern, block.original);
+      translatedDoc = translatedDoc.replace(placeholderPattern, () => block.original);
     });
     
     codeBlocks.forEach(block => {
       const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '\\s*\\_\\s*'), 'gi');
-      translatedDoc = translatedDoc.replace(placeholderPattern, block.original);
+      translatedDoc = translatedDoc.replace(placeholderPattern, () => block.original);
     });
     
     // Set the value back to the editor and update preview
