@@ -159,102 +159,194 @@ function insertTextAtCursor(textarea, text) {
   textarea.selectionStart = textarea.selectionEnd = start + text.length;
 }
 
-// Compile Markdown to HTML with KaTeX and Highlight.js
+// Compile Markdown to HTML with KaTeX and Highlight.js (Asynchronous & Non-blocking)
 let compileTimeout;
+let renderQueueTimeout;
+
 function updatePreview() {
   const markdownText = elements.markdownInput.value;
   
   clearTimeout(compileTimeout);
+  clearTimeout(renderQueueTimeout);
+  
+  const textLength = markdownText.length;
+  // Dynamic debounce delay depending on document size to prevent lag during fast typing
+  const debounceDelay = textLength > 100000 ? 800 : (textLength > 20000 ? 300 : 100);
+  
   compileTimeout = setTimeout(() => {
     try {
       let text = markdownText;
-      
-      // 1. Protect code blocks so they aren't parsed as math
       const codeBlocks = [];
-      text = text.replace(/```[\s\S]*?```/g, (match) => {
-        const placeholder = `CODEBLOCKFENCEDPLACEHOLDER${codeBlocks.length}`;
-        codeBlocks.push({ placeholder, original: match });
-        return placeholder;
-      });
-      text = text.replace(/`[^`\n]+?`/g, (match) => {
-        const placeholder = `CODEBLOCKINLINEPLACEHOLDER${codeBlocks.length}`;
-        codeBlocks.push({ placeholder, original: match });
-        return placeholder;
-      });
-      
-      // 2. Protect math blocks from being corrupted by Markdown syntax (e.g. underscores parsed as italics)
       const mathBlocks = [];
-      // Display Math $$...$$
+      
+      // 1. Extract and protect fenced code blocks using HTML placeholders
+      text = text.replace(/```([a-zA-Z0-9_\-+]*)\n([\s\S]*?)```/g, (match, lang, code) => {
+        const placeholder = `<div class="code-placeholder-wrapper" data-index="${codeBlocks.length}"></div>`;
+        codeBlocks.push({ lang: lang.trim(), code: code });
+        return placeholder;
+      });
+      
+      text = text.replace(/```([\s\S]*?)```/g, (match, code) => {
+        const placeholder = `<div class="code-placeholder-wrapper" data-index="${codeBlocks.length}"></div>`;
+        codeBlocks.push({ lang: '', code: code });
+        return placeholder;
+      });
+      
+      // Extract and protect inline code
+      text = text.replace(/`([^`\n]+?)`/g, (match, code) => {
+        const placeholder = `<code class="code-inline-placeholder" data-index="${codeBlocks.length}"></code>`;
+        codeBlocks.push({ lang: '', code: code });
+        return placeholder;
+      });
+      
+      // 2. Extract and protect math blocks using HTML placeholders (prevents markdown parser corruption)
+      // Display Math
       text = text.replace(/\$\$([\s\S]*?)\$\$/g, (match, math) => {
-        const placeholder = `MATHBLOCKDISPLAYPLACEHOLDER${mathBlocks.length}`;
-        mathBlocks.push({ placeholder, math, display: true });
+        const placeholder = `<div class="math-display-placeholder" data-index="${mathBlocks.length}"></div>`;
+        mathBlocks.push({ math: math, display: true });
         return placeholder;
       });
-      // Inline Math $...$ (restricted to single line to prevent matching across lines/paragraphs)
+      
+      // Inline Math
       text = text.replace(/\$([^\$\n]+?)\$/g, (match, math) => {
-        const placeholder = `MATHBLOCKINLINEPLACEHOLDER${mathBlocks.length}`;
-        mathBlocks.push({ placeholder, math, display: false });
+        const placeholder = `<span class="math-inline-placeholder" data-index="${mathBlocks.length}"></span>`;
+        mathBlocks.push({ math: math, display: false });
         return placeholder;
       });
       
-      // 3. Restore code blocks back to markdown format (using regex and lookahead to prevent substring matching and protect dollar signs)
-      codeBlocks.forEach(block => {
-        text = text.replace(new RegExp(block.placeholder + '(?!\\d)', 'g'), () => block.original);
-      });
+      // 3. Parse Markdown to HTML (instantaneous because heavy code/math segments are bypassed)
+      const htmlContent = marked.parse(text);
       
-      // 4. Parse Markdown to HTML
-      let htmlContent = marked.parse(text);
+      // 4. Render base HTML content immediately so layout displays without blocking
+      elements.documentPreview.innerHTML = htmlContent;
       
-      // 5. Resolve relative images with local uploaded Blob URLs
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(htmlContent, 'text/html');
-      const imgs = doc.querySelectorAll('img');
-      let imgReplaced = false;
-      
+      // 5. Resolve relative images with local uploaded Blob URLs directly on the DOM
+      const imgs = elements.documentPreview.querySelectorAll('img');
       imgs.forEach(img => {
         const src = img.getAttribute('src');
         if (src && !src.startsWith('blob:') && !src.startsWith('data:') && !src.startsWith('http://') && !src.startsWith('https://')) {
           const filename = src.split('/').pop();
           if (uploadedImages[filename]) {
             img.setAttribute('src', uploadedImages[filename]);
-            imgReplaced = true;
           }
         }
       });
       
-      if (imgReplaced) {
-        htmlContent = doc.body.innerHTML;
-      }
-      
-      // 6. Restore math blocks using katex.renderToString directly (using boundary and safe callback function)
-      mathBlocks.forEach(block => {
-        try {
-          // If the math contains \tag, it MUST be rendered in display mode to avoid KaTeX parse errors
-          let displayMode = block.display;
-          if (block.math.includes('\\tag')) {
-            displayMode = true;
-          }
-          
-          const mathHtml = katex.renderToString(block.math, {
-            displayMode: displayMode,
-            throwOnError: false
-          });
-          
-          const replacement = displayMode ? `<div class="katex-display-wrapper">${mathHtml}</div>` : mathHtml;
-          htmlContent = htmlContent.replace(new RegExp(block.placeholder + '(?!\\d)', 'g'), () => replacement);
-        } catch (katexErr) {
-          console.error(katexErr);
-          htmlContent = htmlContent.replace(new RegExp(block.placeholder + '(?!\\d)', 'g'), () => `<span class="katex-error" style="color: #ef4444;">${block.math}</span>`);
-        }
-      });
-      
-      elements.documentPreview.innerHTML = htmlContent;
+      // 6. Asynchronously render math formulas and code highlighting in non-blocking batches
+      startAsyncRendering(codeBlocks, mathBlocks);
       
     } catch (err) {
       console.error('Markdown parsing error:', err);
       elements.documentPreview.innerHTML = `<div style="color: #ef4444; padding: 1rem;"><i class="fa-solid fa-triangle-exclamation"></i> Lỗi biên dịch cú pháp Markdown</div>`;
     }
-  }, 100);
+  }, debounceDelay);
+}
+
+function startAsyncRendering(codeBlocks, mathBlocks) {
+  const container = elements.documentPreview;
+  const mathDisplayPlaceholders = Array.from(container.querySelectorAll('.math-display-placeholder'));
+  const mathInlinePlaceholders = Array.from(container.querySelectorAll('.math-inline-placeholder'));
+  const codePlaceholders = Array.from(container.querySelectorAll('.code-placeholder-wrapper'));
+  const codeInlinePlaceholders = Array.from(container.querySelectorAll('.code-inline-placeholder'));
+  
+  const jobs = [];
+  
+  // Create jobs for Math Display
+  mathDisplayPlaceholders.forEach(el => {
+    const idx = parseInt(el.getAttribute('data-index'));
+    const block = mathBlocks[idx];
+    if (block) {
+      jobs.push(() => {
+        try {
+          let math = block.math;
+          let displayMode = true;
+          // Support tag detection
+          if (math.includes('\\tag')) {
+            displayMode = true;
+          }
+          const mathHtml = katex.renderToString(math, {
+            displayMode: displayMode,
+            throwOnError: false
+          });
+          el.innerHTML = `<div class="katex-display-wrapper">${mathHtml}</div>`;
+        } catch (katexErr) {
+          el.innerHTML = `<span class="katex-error" style="color: #ef4444;">${block.math}</span>`;
+        }
+      });
+    }
+  });
+  
+  // Create jobs for Math Inline
+  mathInlinePlaceholders.forEach(el => {
+    const idx = parseInt(el.getAttribute('data-index'));
+    const block = mathBlocks[idx];
+    if (block) {
+      jobs.push(() => {
+        try {
+          const mathHtml = katex.renderToString(block.math, {
+            displayMode: false,
+            throwOnError: false
+          });
+          el.innerHTML = mathHtml;
+        } catch (katexErr) {
+          el.innerHTML = `<span class="katex-error" style="color: #ef4444;">${block.math}</span>`;
+        }
+      });
+    }
+  });
+  
+  // Create jobs for Code Blocks
+  codePlaceholders.forEach(el => {
+    const idx = parseInt(el.getAttribute('data-index'));
+    const block = codeBlocks[idx];
+    if (block) {
+      jobs.push(() => {
+        const pre = document.createElement('pre');
+        const code = document.createElement('code');
+        code.className = block.lang ? `hljs language-${block.lang}` : 'hljs';
+        code.textContent = block.code;
+        pre.appendChild(code);
+        el.appendChild(pre);
+        
+        if (typeof hljs !== 'undefined') {
+          try {
+            hljs.highlightElement(code);
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      });
+    }
+  });
+  
+  // Create jobs for Inline Code
+  codeInlinePlaceholders.forEach(el => {
+    const idx = parseInt(el.getAttribute('data-index'));
+    const block = codeBlocks[idx];
+    if (el && block) {
+      jobs.push(() => {
+        el.textContent = block.code;
+      });
+    }
+  });
+  
+  // Process the queue asynchronously in small batches (e.g. 15 tasks per tick)
+  const batchSize = 15;
+  let jobIndex = 0;
+  
+  function runBatch() {
+    const end = Math.min(jobIndex + batchSize, jobs.length);
+    for (; jobIndex < end; jobIndex++) {
+      jobs[jobIndex]();
+    }
+    if (jobIndex < jobs.length) {
+      renderQueueTimeout = setTimeout(runBatch, 15); // Defer to next event loop cycle (15ms delay)
+    }
+  }
+  
+  if (jobs.length > 0) {
+    runBatch();
+  }
 }
 
 // Apply document customization settings
@@ -292,19 +384,24 @@ function switchTab(tabName) {
 elements.tabBtnMarkdown.addEventListener('click', () => switchTab('markdown'));
 elements.tabBtnPdf.addEventListener('click', () => switchTab('pdf'));
 
-// MD File Upload Listener
-elements.inputUploadMd.addEventListener('change', (e) => {
+// Document File Import & Conversion Listener (uses MarkItDown converter)
+elements.inputUploadMd.addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
   
-  const reader = new FileReader();
-  reader.onload = (event) => {
-    elements.markdownInput.value = event.target.result;
+  showToast('Đang xử lý và chuyển đổi tài liệu... Vui lòng đợi.', 'info');
+  
+  const markitdown = new MarkItDown();
+  try {
+    const markdown = await markitdown.convert(file);
+    elements.markdownInput.value = markdown;
     updatePreview();
     switchTab('markdown');
-    showToast('Đã tải lên tệp tin Markdown thành công!', 'success');
-  };
-  reader.readAsText(file);
+    showToast(`Đã nhập và chuyển đổi thành công tài liệu: ${file.name}!`, 'success');
+  } catch (err) {
+    console.error('Conversion error:', err);
+    showToast(`Lỗi chuyển đổi tài liệu: ${err.message}`, 'error');
+  }
 });
 
 // PDF File Upload Listener
@@ -440,32 +537,42 @@ async function translateDocument() {
       return results;
     }
     
+    let completedParagraphs = 0;
+    const totalParagraphs = paragraphs.length;
+    
     const translatedParagraphs = await mapLimit(paragraphs, 5, async (p) => {
-      if (!p.trim()) {
-        return p;
+      try {
+        if (!p.trim()) {
+          return p;
+        }
+        
+        // Skip translation if the paragraph is just a placeholder
+        if (/^__(PROTECTED_CODE_BLOCK|PROTECTED_MATH_BLOCK|PROTECTED_TABLE_BLOCK|PROTECTED_IMAGE_BLOCK|PROTECTED_LINK_BLOCK)_\d+__$/.test(p.trim())) {
+          return p.trim();
+        }
+        
+        // Call free Google Translate API
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(p)}`;
+        const response = await fetch(url);
+        
+        if (!response.ok) throw new Error("Translation request failed");
+        
+        const json = await response.json();
+        let translatedText = "";
+        if (json && json[0]) {
+          json[0].forEach(segment => {
+            if (segment[0]) {
+              translatedText += segment[0];
+            }
+          });
+        }
+        return translatedText || p;
+      } finally {
+        completedParagraphs++;
+        const percent = Math.round((completedParagraphs / totalParagraphs) * 100);
+        elements.btnTranslateDoc.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang dịch (${percent}%)`;
+        elements.btnTranslateDoc.style.background = `linear-gradient(to right, rgba(59, 130, 246, 0.35) ${percent}%, rgba(255, 255, 255, 0.04) ${percent}%)`;
       }
-      
-      // Skip translation if the paragraph is just a placeholder
-      if (/^__(PROTECTED_CODE_BLOCK|PROTECTED_MATH_BLOCK|PROTECTED_TABLE_BLOCK|PROTECTED_IMAGE_BLOCK|PROTECTED_LINK_BLOCK)_\d+__$/.test(p.trim())) {
-        return p.trim();
-      }
-      
-      // Call free Google Translate API
-      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(p)}`;
-      const response = await fetch(url);
-      
-      if (!response.ok) throw new Error("Translation request failed");
-      
-      const json = await response.json();
-      let translatedText = "";
-      if (json && json[0]) {
-        json[0].forEach(segment => {
-          if (segment[0]) {
-            translatedText += segment[0];
-          }
-        });
-      }
-      return translatedText || p;
     });
     
     // Reconstruct the translated document
@@ -509,6 +616,7 @@ async function translateDocument() {
   } finally {
     elements.btnTranslateDoc.disabled = false;
     elements.btnTranslateDoc.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Dịch tài liệu';
+    elements.btnTranslateDoc.style.background = '';
   }
 }
 
@@ -574,6 +682,8 @@ async function exportToPdfDirect() {
   const originalTextJustify = element.style.textAlign;
   const originalDisplay = element.style.display;
   const originalTransition = element.style.transition;
+  const originalWidth = element.style.width;
+  const originalMaxWidth = element.style.maxWidth;
   
   try {
     // 2. Temporarily display block and disable transitions to measure height accurately
@@ -597,20 +707,43 @@ async function exportToPdfDirect() {
       return;
     }
     
-    // 3. Dynamically load html2pdf.js library if not loaded
-    if (typeof html2pdf === 'undefined') {
+    // 3. Dynamically load html2canvas, modern jsPDF (with outlines support) and html2pdf.js if not loaded
+    if (typeof html2canvas === 'undefined') {
       await new Promise((resolve, reject) => {
         const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
         script.onload = resolve;
-        script.onerror = () => reject(new Error('Không thể tải thư viện xuất PDF!'));
+        script.onerror = () => reject(new Error('Không thể tải thư viện html2canvas!'));
         document.head.appendChild(script);
       });
     }
     
+    // Always load/overwrite with modern jsPDF to ensure outlines module is present
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      script.onload = () => {
+        if (window.jspdf && window.jspdf.jsPDF) {
+          window.jsPDF = window.jspdf.jsPDF;
+        }
+        resolve();
+      };
+      script.onerror = () => reject(new Error('Không thể tải thư viện jsPDF!'));
+      document.head.appendChild(script);
+    });
+    
+    // Always load/overwrite with unbundled html2pdf.js to use the new jsPDF
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.min.js';
+      script.onload = resolve;
+      script.onerror = () => reject(new Error('Không thể tải thư viện html2pdf!'));
+      document.head.appendChild(script);
+    });
+    
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang xuất...';
     
-    // 4. Apply styling changes to force print mode (white page, black text, zero padding)
+    // 4. Apply styling changes to force print mode (white page, black text, zero padding, normalized width)
     const originalMarginVal = state.margin; // e.g. "1in", "0.5in"
     let marginInches = 0.5;
     if (originalMarginVal.includes('in')) {
@@ -626,6 +759,8 @@ async function exportToPdfDirect() {
     element.style.borderRadius = '0';
     element.style.padding = '0'; // let html2pdf margins handle page spacing
     element.style.textAlign = 'justify';
+    element.style.width = '794px';
+    element.style.maxWidth = '794px';
     
     // Force reflow and introduce a small delay to ensure browser layout & style paint finishes before canvas capture
     element.offsetHeight;
@@ -649,7 +784,62 @@ async function exportToPdfDirect() {
     };
     
     // Run html2pdf and await download completion
-    await html2pdf().set(opt).from(element).save();
+    await html2pdf()
+      .set(opt)
+      .from(element)
+      .toPdf()
+      .get('pdf')
+      .then(function(pdf) {
+        // Enable Table of Contents outline sidebar pane open by default
+        if (typeof pdf.setDisplayMode === 'function') {
+          pdf.setDisplayMode('original', 'continuous', 'UseOutlines');
+        }
+        
+        // Calculate page height in pixels
+        const widthPx = 794;
+        const printableHeight = 11.69 - 2 * marginInches;
+        const printableWidth = 8.27 - 2 * marginInches;
+        const pageHeightPx = widthPx * (printableHeight / printableWidth);
+        
+        const getRelativeOffsetTop = (el, container) => {
+          let offset = 0;
+          while (el && el !== container) {
+            offset += el.offsetTop;
+            el = el.offsetParent;
+          }
+          return offset;
+        };
+        
+        const headings = element.querySelectorAll('h1, h2, h3, h4, h5, h6');
+        const outlineStack = [];
+        
+        if (pdf.outline && typeof pdf.outline.add === 'function') {
+          headings.forEach(h => {
+            const level = parseInt(h.tagName.substring(1));
+            const title = h.innerText.trim();
+            if (!title) return;
+            
+            const offsetTop = getRelativeOffsetTop(h, element);
+            const pageNumber = Math.floor(offsetTop / pageHeightPx) + 1;
+            
+            while (outlineStack.length > 0 && outlineStack[outlineStack.length - 1].level >= level) {
+              outlineStack.pop();
+            }
+            
+            const parentRef = outlineStack.length > 0 ? outlineStack[outlineStack.length - 1].ref : null;
+            
+            try {
+              const outlineRef = pdf.outline.add(parentRef, title, { pageNumber: pageNumber });
+              outlineStack.push({ level: level, ref: outlineRef });
+            } catch (e) {
+              console.error("Failed to add outline item:", title, e);
+            }
+          });
+        } else {
+          console.warn("jsPDF outline plugin is not available on this instance.");
+        }
+      })
+      .save();
     
     showToast('Tải xuống PDF thành công!', 'success');
   } catch (err) {
@@ -665,6 +855,8 @@ async function exportToPdfDirect() {
     element.style.textAlign = originalTextJustify;
     element.style.display = originalDisplay;
     element.style.transition = originalTransition;
+    element.style.width = originalWidth;
+    element.style.maxWidth = originalMaxWidth;
     
     btn.disabled = false;
     btn.innerHTML = originalText;

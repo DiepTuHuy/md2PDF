@@ -45,9 +45,9 @@
       <div class="panel-header">
         <h2><i class="fa-solid fa-pen-to-square"></i> Soạn thảo Markdown</h2>
         <div class="header-upload-actions">
-          <input type="file" id="input-upload-md" accept=".md" style="display: none;">
-          <button class="upload-btn" onclick="document.getElementById('input-upload-md').click()" title="Tải lên tệp Markdown (.md)">
-            <i class="fa-solid fa-file-import"></i> Tải MD
+          <input type="file" id="input-upload-md" accept=".md,.txt,.html,.htm,.csv,.pdf,.docx,.xlsx,.xls,.zip" style="display: none;">
+          <button class="upload-btn" onclick="document.getElementById('input-upload-md').click()" title="Nhập tài liệu và tự động chuyển đổi sang Markdown (Hỗ trợ: PDF, Word, Excel, HTML, CSV, ZIP, MD...)">
+            <i class="fa-solid fa-file-import"></i> Nhập Tài liệu
           </button>
           
           <input type="file" id="input-upload-images" accept="image/*" multiple style="display: none;">
@@ -214,6 +214,7 @@
   <div class="toast-container no-print" id="toast-box"></div>
 
   <!-- Application Logic -->
+  <script src="markitdown.js?v=1.0.2"></script>
   <script src="app.js?v=1.0.2"></script>
 </body>
 </html>
