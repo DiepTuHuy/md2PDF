@@ -190,16 +190,16 @@ function updatePreview() {
         mathBlocks.push({ placeholder, math, display: true });
         return placeholder;
       });
-      // Inline Math $...$
-      text = text.replace(/\$([^\$]+?)\$/g, (match, math) => {
+      // Inline Math $...$ (restricted to single line to prevent matching across lines/paragraphs)
+      text = text.replace(/\$([^\$\n]+?)\$/g, (match, math) => {
         const placeholder = `MATHBLOCKINLINEPLACEHOLDER${mathBlocks.length}`;
         mathBlocks.push({ placeholder, math, display: false });
         return placeholder;
       });
       
-      // 3. Restore code blocks back to markdown format
+      // 3. Restore code blocks back to markdown format (using regex and boundary to prevent substring matching and protect dollar signs)
       codeBlocks.forEach(block => {
-        text = text.replace(block.placeholder, block.original);
+        text = text.replace(new RegExp(block.placeholder + '\\b', 'g'), () => block.original);
       });
       
       // 4. Parse Markdown to HTML
@@ -226,7 +226,7 @@ function updatePreview() {
         htmlContent = doc.body.innerHTML;
       }
       
-      // 6. Restore math blocks using katex.renderToString directly
+      // 6. Restore math blocks using katex.renderToString directly (using boundary and safe callback function)
       mathBlocks.forEach(block => {
         try {
           // If the math contains \tag, it MUST be rendered in display mode to avoid KaTeX parse errors
@@ -241,10 +241,10 @@ function updatePreview() {
           });
           
           const replacement = displayMode ? `<div class="katex-display-wrapper">${mathHtml}</div>` : mathHtml;
-          htmlContent = htmlContent.replace(block.placeholder, replacement);
+          htmlContent = htmlContent.replace(new RegExp(block.placeholder + '\\b', 'g'), () => replacement);
         } catch (katexErr) {
           console.error(katexErr);
-          htmlContent = htmlContent.replace(block.placeholder, `<span class="katex-error" style="color: #ef4444;">${block.math}</span>`);
+          htmlContent = htmlContent.replace(new RegExp(block.placeholder + '\\b', 'g'), () => `<span class="katex-error" style="color: #ef4444;">${block.math}</span>`);
         }
       });
       
@@ -397,8 +397,8 @@ async function translateDocument() {
       mathBlocks.push({ placeholder: placeholderKey, original: match });
       return placeholder;
     });
-    // Inline Math
-    text = text.replace(/\$[^\$]+?\$/g, (match) => {
+    // Inline Math (restrict to single line to prevent matching across paragraphs/lines)
+    text = text.replace(/\$[^\$\n]+?\$/g, (match) => {
       const placeholderKey = `__PROTECTED_MATH_BLOCK_${mathBlocks.length}__`;
       mathBlocks.push({ placeholder: placeholderKey, original: match });
       return placeholderKey;
@@ -471,30 +471,30 @@ async function translateDocument() {
     // Reconstruct the translated document
     let translatedDoc = translatedParagraphs.join('\n\n');
     
-    // Restore protected blocks (regex match with spaces allowed around underscores)
-    linkBlocks.forEach(block => {
-      const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '[ \\t]*\\_[ \\t]*'), 'gi');
-      translatedDoc = translatedDoc.replace(placeholderPattern, () => block.original);
+    // Helper to generate highly robust regex for placeholders to prevent prefix/substring collisions and space/underscore mangling
+    const getRobustPattern = (type, index) => {
+      return new RegExp(`_*[ \\t]*PROTECTED[ \\t]*\\_[ \\t]*${type}[ \\t]*\\_[ \\t]*BLOCK[ \\t]*\\_[ \\t]*${index}\\b[ \\t]*_*`, 'gi');
+    };
+
+    // Restore protected blocks (regex match with spaces allowed around underscores and strict boundary check)
+    linkBlocks.forEach((block, idx) => {
+      translatedDoc = translatedDoc.replace(getRobustPattern('LINK', idx), () => block.original);
     });
     
-    imageBlocks.forEach(block => {
-      const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '[ \\t]*\\_[ \\t]*'), 'gi');
-      translatedDoc = translatedDoc.replace(placeholderPattern, () => block.original);
+    imageBlocks.forEach((block, idx) => {
+      translatedDoc = translatedDoc.replace(getRobustPattern('IMAGE', idx), () => block.original);
     });
     
-    mathBlocks.forEach(block => {
-      const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '[ \\t]*\\_[ \\t]*'), 'gi');
-      translatedDoc = translatedDoc.replace(placeholderPattern, () => block.original);
+    mathBlocks.forEach((block, idx) => {
+      translatedDoc = translatedDoc.replace(getRobustPattern('MATH', idx), () => block.original);
     });
     
-    tableBlocks.forEach(block => {
-      const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '[ \\t]*\\_[ \\t]*'), 'gi');
-      translatedDoc = translatedDoc.replace(placeholderPattern, () => block.original);
+    tableBlocks.forEach((block, idx) => {
+      translatedDoc = translatedDoc.replace(getRobustPattern('TABLE', idx), () => block.original);
     });
     
-    codeBlocks.forEach(block => {
-      const placeholderPattern = new RegExp(block.placeholder.replace(/_/g, '[ \\t]*\\_[ \\t]*'), 'gi');
-      translatedDoc = translatedDoc.replace(placeholderPattern, () => block.original);
+    codeBlocks.forEach((block, idx) => {
+      translatedDoc = translatedDoc.replace(getRobustPattern('CODE', idx), () => block.original);
     });
     
     // Set the value back to the editor and update preview

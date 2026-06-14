@@ -389,7 +389,10 @@ select:focus {
 
 #document-preview tr,
 #document-preview pre,
-#document-preview blockquote {
+#document-preview blockquote,
+#document-preview img,
+#document-preview .katex-display-wrapper,
+#document-preview .katex-display {
   page-break-inside: avoid;
   break-inside: avoid;
 }
@@ -475,9 +478,19 @@ select:focus {
   background-color: #fcfdfe;
 }
 
+/* Images inside Document */
+#document-preview img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1.5rem auto;
+}
+
 /* Math rendering inside document */
+#document-preview .katex-display-wrapper,
 #document-preview .katex-display {
   margin: 1.2em 0;
+  max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
 }
