@@ -692,6 +692,7 @@ footer {
   }
   
   #document-preview {
+    display: block !important;
     box-shadow: none !important;
     border: none !important;
     padding: 0 !important; /* The page margin handles document padding */

@@ -586,6 +586,7 @@ async function exportToPdfDirect() {
     const originalBorderRadius = element.style.borderRadius;
     const originalPadding = element.style.padding;
     const originalTextJustify = element.style.textAlign;
+    const originalDisplay = element.style.display;
     
     const originalMarginVal = state.margin; // e.g. "1in", "0.5in"
     let marginInches = 0.5;
@@ -602,6 +603,7 @@ async function exportToPdfDirect() {
     element.style.borderRadius = '0';
     element.style.padding = '0'; // let html2pdf margins handle page spacing
     element.style.textAlign = 'justify';
+    element.style.display = 'block';
     
     const opt = {
       margin:       marginInches,
@@ -630,6 +632,7 @@ async function exportToPdfDirect() {
     element.style.borderRadius = originalBorderRadius;
     element.style.padding = originalPadding;
     element.style.textAlign = originalTextJustify;
+    element.style.display = originalDisplay;
     
     showToast('Tải xuống PDF thành công!', 'success');
   } catch (err) {
